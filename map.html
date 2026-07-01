@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Map — Wanderlines</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="style.css">
+<style>
+  .map-page {
+    padding-top: 4.5rem;
+  }
+
+  #map {
+    width: 100%;
+    height: calc(100vh - 4.5rem);
+    background: #cfe3ef;
+  }
+
+  .leaflet-container {
+    background: #cfe3ef !important;
+    font-family: var(--font-sans);
+    outline: none;
+  }
+
+  .leaflet-popup-content-wrapper {
+    border-radius: 0;
+    background: var(--bg);
+    color: var(--text);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    padding: 0;
+  }
+
+  .leaflet-popup-content {
+    margin: 0;
+    width: 260px !important;
+  }
+
+  .leaflet-popup-tip {
+    background: var(--bg);
+  }
+
+  .popup-country {
+    padding: 1rem 1.1rem 0.4rem;
+    font-size: 0.65rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0.5rem;
+  }
+
+  .popup-article {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+    padding: 0.75rem 1.1rem;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s ease;
+  }
+
+  .popup-article:last-child {
+    border-bottom: none;
+  }
+
+  .popup-article:hover {
+    background: rgba(0,0,0,0.03);
+    opacity: 1;
+  }
+
+  .popup-meta {
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 0.3rem;
+  }
+
+  .popup-title {
+    font-family: var(--font-serif);
+    font-size: 1.1rem;
+    font-weight: 400;
+    line-height: 1.25;
+  }
+
+  .map-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  [data-theme="dark"] #map,
+  [data-theme="dark"] .leaflet-container {
+    background: #1a2530 !important;
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-brand">Wanderlines</a>
+  <ul class="nav-links">
+    <li><a href="index.html">Home</a></li>
+    <li><a href="trips.html">Trips</a></li>
+    <li><a href="map.html">Map</a></li>
+    <li><a href="about.html">About</a></li>
+    <li><button class="theme-toggle" aria-label="Toggle theme">☾</button></li>
+  </ul>
+</nav>
+
+<div class="map-page">
+  <div style="position: relative;">
+    <div id="map"></div>
+    <div class="map-loading" id="mapLoading">Loading map…</div>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">Wanderlines</div>
+    <ul class="footer-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="trips.html">Trips</a></li>
+      <li><a href="map.html">Map</a></li>
+      <li><a href="about.html">About</a></li>
+    </ul>
+    <div class="footer-copy">© 2026 Wanderlines</div>
+  </div>
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="script.js"></script>
+<script>
+  // Visited countries, keyed by ISO A3 code.
+  // Each country can hold multiple articles.
+  const visitedCountries = {
+    "CHL": [
+      { title: "Among the Quiet Peaks of Patagonia", meta: "March 2026", url: "post-patagonia.html" }
+    ],
+    "CHE": [
+      { title: "Silence at 3000 Meters", meta: "January 2026", url: "post-patagonia.html" }
+    ],
+    "JPN": [
+      { title: "Kyoto in Slow Motion", meta: "October 2025", url: "post-patagonia.html" }
+    ],
+    "ISL": [
+      { title: "The Long Light of the North", meta: "July 2025", url: "post-patagonia.html" }
+    ],
+    "FRA": [
+      { title: "Paris in Quiet Hours", meta: "April 2025", url: "post-patagonia.html" }
+    ],
+    "MAR": [
+      { title: "Blue Walls of Chefchaouen", meta: "February 2025", url: "post-patagonia.html" }
+    ],
+    "VNM": [
+      { title: "Mist Over Hà Giang", meta: "November 2024", url: "post-patagonia.html" }
+    ],
+    "NOR": [
+      { title: "Fjords in Soft Weather", meta: "September 2024", url: "post-patagonia.html" }
+    ],
+    "GBR": [
+      { title: "A Highland Diary", meta: "Scotland · June 2024", url: "post-patagonia.html" }
+    ]
+  };
+
+  const STYLE_VISITED = {
+    fillColor: "#b8d8b8",
+    fillOpacity: 1,
+    color: "#8fb88f",
+    weight: 0.6
+  };
+
+  const STYLE_UNVISITED = {
+    fillColor: "#ffffff",
+    fillOpacity: 1,
+    color: "#c8c8c8",
+    weight: 0.5
+  };
+
+  const STYLE_VISITED_HOVER = {
+    fillColor: "#a4cca4",
+    fillOpacity: 1,
+    color: "#6a9a6a",
+    weight: 1
+  };
+
+  const map = L.map('map', {
+    center: [30, 15],
+    zoom: 2,
+    minZoom: 2,
+    maxZoom: 6,
+    scrollWheelZoom: false,
+    worldCopyJump: true,
+    zoomControl: true,
+    attributionControl: false
+  });
+
+  function getCountryCode(feature) {
+    const p = feature.properties || {};
+    return p["ISO3166-1-Alpha-3"] || p.ISO_A3 || p.iso_a3 || p.adm0_a3 || feature.id || null;
+  }
+
+  function getCountryName(feature) {
+    const p = feature.properties || {};
+    return p.name || p.ADMIN || p.admin || getCountryCode(feature);
+  }
+
+  function isVisited(feature) {
+    const code = getCountryCode(feature);
+    return code && visitedCountries[code];
+  }
+
+  function styleFor(feature) {
+    return isVisited(feature) ? STYLE_VISITED : STYLE_UNVISITED;
+  }
+
+  function buildPopup(countryName, articles) {
+    const items = articles.map(a => `
+      <a href="${a.url}" class="popup-article">
+        <div class="popup-meta">${a.meta}</div>
+        <div class="popup-title">${a.title}</div>
+      </a>
+    `).join('');
+    return `<div class="popup-country">${countryName}</div>${items}`;
+  }
+
+  function onEachFeature(feature, layer) {
+    if (!isVisited(feature)) return;
+
+    const code = getCountryCode(feature);
+    const name = getCountryName(feature);
+    const articles = visitedCountries[code];
+
+    layer.bindPopup(buildPopup(name, articles), { closeButton: false, maxWidth: 280 });
+
+    layer.on('mouseover', () => layer.setStyle(STYLE_VISITED_HOVER));
+    layer.on('mouseout', () => layer.setStyle(STYLE_VISITED));
+  }
+
+  // Public GeoJSON of world country boundaries with ISO_A3 codes
+  fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
+    .then(r => r.json())
+    .then(data => {
+      L.geoJSON(data, {
+        style: styleFor,
+        onEachFeature: onEachFeature
+      }).addTo(map);
+      document.getElementById('mapLoading').style.display = 'none';
+    })
+    .catch(err => {
+      document.getElementById('mapLoading').textContent = 'Could not load map data.';
+      console.error(err);
+    });
+</script>
+</body>
+</html>
