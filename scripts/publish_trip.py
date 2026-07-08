@@ -74,10 +74,26 @@ def parse_body(body: str):
     return [s for s in sections if s[1]]
 
 
+def get_dimensions(path):
+    result = subprocess.run(
+        ["sips", "-g", "pixelWidth", "-g", "pixelHeight", str(path)],
+        capture_output=True, text=True, check=True,
+    )
+    width = height = None
+    for line in result.stdout.splitlines():
+        line = line.strip()
+        if line.startswith("pixelWidth:"):
+            width = int(line.split(":")[1].strip())
+        elif line.startswith("pixelHeight:"):
+            height = int(line.split(":")[1].strip())
+    return width, height
+
+
 def process_images(photo_paths, slug):
+    """Resize/compress each photo, returning (web_path, is_landscape) pairs."""
     out_dir = REPO / "assets" / "images" / slug
     out_dir.mkdir(parents=True, exist_ok=True)
-    web_paths = []
+    results = []
     for i, src in enumerate(photo_paths, start=1):
         dest_name = f"{i:02d}-{slugify(src.stem)}.jpg"
         dest = out_dir / dest_name
@@ -86,12 +102,15 @@ def process_images(photo_paths, slug):
              "-Z", "2000", str(src), "--out", str(dest)],
             check=True, capture_output=True,
         )
-        web_paths.append(f"assets/images/{slug}/{dest_name}")
-    return web_paths
+        width, height = get_dimensions(dest)
+        is_landscape = bool(width and height and width > height)
+        results.append((f"assets/images/{slug}/{dest_name}", is_landscape))
+    return results
 
 
 def build_article_html(meta, sections, images):
-    hero_img = images[0]
+    # images is a list of (web_path, is_landscape) pairs.
+    hero_img = images[0][0]
     remaining = images[1:]
 
     blocks = []
@@ -105,27 +124,45 @@ def build_article_html(meta, sections, images):
         blocks.append(f'  <div class="prose">\n{inner}  </div>')
 
         if remaining:
-            img = remaining.pop(0)
+            img_path, _ = remaining.pop(0)
             blocks.append(
                 f'  <figure class="image-full">\n'
-                f'    <img loading="lazy" src="{img}" alt="{meta["title"]}">\n'
+                f'    <img loading="lazy" src="{img_path}" alt="{meta["title"]}">\n'
                 f'  </figure>'
             )
 
-    while remaining:
-        chunk, remaining = remaining[:3], remaining[3:]
-        if len(chunk) == 1:
+    # Landscape photos always get their own full-width block — .image-pair
+    # and .image-triptych crop to a 3:4 portrait box, which badly crops a
+    # landscape shot. Only consecutive portrait photos get grouped together.
+    portrait_buffer = []
+
+    def flush_portraits():
+        if not portrait_buffer:
+            return
+        imgs_html = "\n".join(
+            f'    <img loading="lazy" src="{p}" alt="{meta["title"]}">' for p in portrait_buffer
+        )
+        if len(portrait_buffer) == 1:
+            blocks.append(f'  <figure class="image-full">\n{imgs_html}\n  </figure>')
+        elif len(portrait_buffer) == 2:
+            blocks.append(f'  <div class="image-pair">\n{imgs_html}\n  </div>')
+        else:
+            blocks.append(f'  <div class="image-triptych">\n{imgs_html}\n  </div>')
+        portrait_buffer.clear()
+
+    for img_path, is_landscape in remaining:
+        if is_landscape:
+            flush_portraits()
             blocks.append(
                 f'  <figure class="image-full">\n'
-                f'    <img loading="lazy" src="{chunk[0]}" alt="{meta["title"]}">\n'
+                f'    <img loading="lazy" src="{img_path}" alt="{meta["title"]}">\n'
                 f'  </figure>'
             )
-        elif len(chunk) == 2:
-            imgs = "\n".join(f'    <img loading="lazy" src="{i}" alt="{meta["title"]}">' for i in chunk)
-            blocks.append(f'  <div class="image-pair">\n{imgs}\n  </div>')
         else:
-            imgs = "\n".join(f'    <img loading="lazy" src="{i}" alt="{meta["title"]}">' for i in chunk)
-            blocks.append(f'  <div class="image-triptych">\n{imgs}\n  </div>')
+            portrait_buffer.append(img_path)
+            if len(portrait_buffer) == 3:
+                flush_portraits()
+    flush_portraits()
 
     body_html = "\n\n".join(blocks)
 
@@ -402,7 +439,7 @@ def main():
     (REPO / filename).write_text(article_html, encoding="utf-8")
 
     print("Updating trips.html...")
-    card_image = images[1] if len(images) > 1 else images[0]
+    card_image = images[1][0] if len(images) > 1 else images[0][0]
     update_trips_html(meta, filename, card_image)
 
     print("Updating map.html...")
@@ -410,7 +447,7 @@ def main():
 
     if "--no-homepage" not in flags:
         print("Updating index.html...")
-        update_index_html(meta, filename, images[0], card_image)
+        update_index_html(meta, filename, images[0][0], card_image)
 
     git_commit_and_push(meta, push="--no-push" not in flags)
 
