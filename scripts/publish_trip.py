@@ -14,23 +14,63 @@ What it does:
      first — old article file, old photo folder, old trips.html/index.html
      cards, old map.html entries — so re-running on an edited trip folder
      (e.g. one photo removed) replaces it instead of creating a duplicate.
-  2. Resizes/compresses photos (sips, macOS built-in) into assets/images/<slug>/
-  3. Generates post-<slug>.html from the article template
-  4. Prepends a trip card to trips.html
-  5. Adds/updates the country entry in map.html
-  6. Promotes the new post to the homepage hero, demotes the old hero into
+  2. Bakes each photo's true orientation into its pixels (via exiftool +
+     sips) before resizing — some cameras (e.g. Ricoh GR) save portrait
+     shots as landscape-shaped pixel data with only an EXIF Orientation
+     tag marking the correction, and sips's own resize doesn't apply it,
+     so left alone the photo comes out sideways.
+  3. Resizes/compresses photos (sips, macOS built-in) into assets/images/<slug>/
+  4. Generates post-<slug>.html from the article template
+  5. Prepends a trip card to trips.html
+  6. Adds/updates the country entry in map.html
+  7. Promotes the new post to the homepage hero, demotes the old hero into
      the "Recent Journeys" grid, and trims the grid back to 5 cards
-  7. Commits everything and pushes to origin/main (unless --no-push)
+  8. Commits everything and pushes to origin/main (unless --no-push)
 """
+import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".heic", ".webp"}
 MAX_HOMEPAGE_CARDS = 5
+
+# EXIF Orientation tag -> degrees to rotate clockwise to correct it.
+# Values 2/4/5/7 involve a mirror flip in addition to rotation; these don't
+# occur from normal camera shooting, so they're left unhandled.
+ORIENTATION_TO_ROTATION = {1: 0, 3: 180, 6: 90, 8: 270}
+
+
+def normalize_orientation(src):
+    """If src has a non-trivial EXIF Orientation tag, bake the rotation
+    into the pixels and reset the tag, writing to a temp file (returned).
+    Returns src unchanged if no correction is needed or possible."""
+    result = subprocess.run(
+        ["exiftool", "-Orientation", "-n", "-s", "-s", "-s", str(src)],
+        capture_output=True, text=True,
+    )
+    raw = result.stdout.strip()
+    if not raw or not raw.isdigit():
+        return src
+    orientation = int(raw)
+    degrees = ORIENTATION_TO_ROTATION.get(orientation)
+    if not degrees:
+        return src
+
+    fd, tmp_path = tempfile.mkstemp(suffix=src.suffix)
+    os.close(fd)
+    tmp = Path(tmp_path)
+    shutil.copyfile(src, tmp)
+    subprocess.run(["sips", "-r", str(degrees), str(tmp)], check=True, capture_output=True)
+    subprocess.run(
+        ["exiftool", "-Orientation=1", "-n", "-overwrite_original", str(tmp)],
+        check=True, capture_output=True,
+    )
+    return tmp
 
 
 def slugify(title: str) -> str:
@@ -97,11 +137,16 @@ def process_images(photo_paths, slug):
     for i, src in enumerate(photo_paths, start=1):
         dest_name = f"{i:02d}-{slugify(src.stem)}.jpg"
         dest = out_dir / dest_name
-        subprocess.run(
-            ["sips", "-s", "format", "jpeg", "-s", "formatOptions", "80",
-             "-Z", "2000", str(src), "--out", str(dest)],
-            check=True, capture_output=True,
-        )
+        normalized = normalize_orientation(src)
+        try:
+            subprocess.run(
+                ["sips", "-s", "format", "jpeg", "-s", "formatOptions", "80",
+                 "-Z", "2000", str(normalized), "--out", str(dest)],
+                check=True, capture_output=True,
+            )
+        finally:
+            if normalized != src:
+                normalized.unlink(missing_ok=True)
         width, height = get_dimensions(dest)
         is_landscape = bool(width and height and width > height)
         results.append((f"assets/images/{slug}/{dest_name}", is_landscape))
@@ -408,6 +453,13 @@ def main():
     flags = {a for a in sys.argv[1:] if a.startswith("--")}
     if not args:
         sys.exit("Usage: python3 scripts/publish_trip.py /path/to/trip-folder [--no-push] [--no-homepage]")
+
+    if shutil.which("exiftool") is None:
+        sys.exit(
+            "Error: exiftool is required to read photo orientation correctly "
+            "(sips alone misreads some cameras' rotation tags). Install it with "
+            "'brew install exiftool' or from https://exiftool.org, then retry."
+        )
 
     trip_folder = Path(args[0]).expanduser().resolve()
     if not trip_folder.is_dir():
