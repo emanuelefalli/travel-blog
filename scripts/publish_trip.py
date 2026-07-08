@@ -10,15 +10,20 @@ The trip folder must contain:
   - one or more photo files (.jpg, .jpeg, .png, .heic, .webp)
 
 What it does:
-  1. Resizes/compresses photos (sips, macOS built-in) into assets/images/<slug>/
-  2. Generates post-<slug>.html from the article template
-  3. Prepends a trip card to trips.html
-  4. Adds/updates the country entry in map.html
-  5. Promotes the new post to the homepage hero, demotes the old hero into
+  1. If a post with the same title (same slug) already exists, removes it
+     first — old article file, old photo folder, old trips.html/index.html
+     cards, old map.html entries — so re-running on an edited trip folder
+     (e.g. one photo removed) replaces it instead of creating a duplicate.
+  2. Resizes/compresses photos (sips, macOS built-in) into assets/images/<slug>/
+  3. Generates post-<slug>.html from the article template
+  4. Prepends a trip card to trips.html
+  5. Adds/updates the country entry in map.html
+  6. Promotes the new post to the homepage hero, demotes the old hero into
      the "Recent Journeys" grid, and trims the grid back to 5 cards
-  6. Commits everything and pushes to origin/main (unless --no-push)
+  7. Commits everything and pushes to origin/main (unless --no-push)
 """
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -199,6 +204,65 @@ def trip_card_html(meta, filename, card_image):
     )
 
 
+def remove_trip_card(path, filename):
+    """Remove a <a ... class="trip-card"> block linking to filename, if present."""
+    html = path.read_text(encoding="utf-8")
+    pattern = re.compile(
+        rf'\s*<a href="{re.escape(filename)}" class="trip-card">.*?</a>', re.DOTALL
+    )
+    new_html, n = pattern.subn("", html, count=1)
+    if n:
+        path.write_text(new_html, encoding="utf-8")
+    return bool(n)
+
+
+def remove_from_map(filename):
+    """Remove any visitedCountries entry pointing at filename, dropping the
+    country key entirely if it has no entries left."""
+    path = REPO / "map.html"
+    html = path.read_text(encoding="utf-8")
+    original = html
+
+    entry_pattern = re.compile(
+        r'\s*\{\s*title:\s*"(?:[^"\\]|\\.)*",\s*meta:\s*"(?:[^"\\]|\\.)*",\s*'
+        rf'url:\s*"{re.escape(filename)}"\s*\}}\s*,?'
+    )
+    html = entry_pattern.sub("", html)
+
+    empty_block_pattern = re.compile(r'\s*"[A-Z]{3}":\s*\[\s*\],?')
+    html = empty_block_pattern.sub("", html)
+
+    # Guard against a dangling comma if the removed entry was the last one.
+    html = re.sub(r",(\s*)\};", r"\1};", html)
+
+    if html != original:
+        path.write_text(html, encoding="utf-8")
+        return True
+    return False
+
+
+def remove_existing_post(filename, slug):
+    """Undo a previous publish of this same trip (same slug) before
+    republishing, so re-running the script never duplicates a post."""
+    found = False
+
+    post_path = REPO / filename
+    if post_path.exists():
+        post_path.unlink()
+        found = True
+
+    img_dir = REPO / "assets" / "images" / slug
+    if img_dir.exists():
+        shutil.rmtree(img_dir)
+        found = True
+
+    found |= remove_trip_card(REPO / "trips.html", filename)
+    found |= remove_trip_card(REPO / "index.html", filename)
+    found |= remove_from_map(filename)
+
+    return found
+
+
 def update_trips_html(meta, filename, card_image):
     path = REPO / "trips.html"
     html = path.read_text(encoding="utf-8")
@@ -326,6 +390,9 @@ def main():
     sections = parse_body(body)
     slug = slugify(meta["title"])
     filename = f"post-{slug}.html"
+
+    if remove_existing_post(filename, slug):
+        print(f"Existing publish of '{meta['title']}' found — replacing it.")
 
     print(f"Processing {len(photo_paths)} photo(s) for '{meta['title']}'...")
     images = process_images(photo_paths, slug)
