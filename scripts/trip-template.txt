@@ -1,0 +1,18 @@
+title: The Long Light of the North
+subtitle: Chasing midnight sun along the Ring Road
+location: Reykjavik, Iceland
+country_code: ISL
+country_name: Iceland
+date: July 2026
+---
+The big opening line of your story goes here. This becomes the larger lead paragraph at the top of the article.
+
+A normal paragraph follows. Keep paragraphs separated by a blank line, exactly like this file.
+
+Another paragraph in the same section.
+
+## A Second Section
+
+Start a new section anywhere with a line beginning "## " — it becomes a heading, and a new text block starts here.
+
+More paragraphs in this section.
