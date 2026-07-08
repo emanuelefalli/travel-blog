@@ -1,3 +1,33 @@
+// Mobile nav drawer
+const navToggle = document.querySelector('.nav-toggle');
+const navLinks = document.querySelector('.nav-links');
+const navOverlay = document.querySelector('.nav-overlay');
+
+function closeNav() {
+  navLinks.classList.remove('open');
+  navOverlay.classList.remove('open');
+  navToggle.setAttribute('aria-expanded', 'false');
+  document.body.style.overflow = '';
+}
+
+function openNav() {
+  navLinks.classList.add('open');
+  navOverlay.classList.add('open');
+  navToggle.setAttribute('aria-expanded', 'true');
+  document.body.style.overflow = 'hidden';
+}
+
+if (navToggle && navLinks && navOverlay) {
+  navToggle.addEventListener('click', () => {
+    navLinks.classList.contains('open') ? closeNav() : openNav();
+  });
+  navOverlay.addEventListener('click', closeNav);
+  navLinks.querySelectorAll('a').forEach(a => a.addEventListener('click', closeNav));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && navLinks.classList.contains('open')) closeNav();
+  });
+}
+
 // Theme toggle - persists choice in localStorage
 const themeToggle = document.querySelector('.theme-toggle');
 const root = document.documentElement;
