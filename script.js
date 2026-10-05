@@ -81,6 +81,78 @@ document.querySelectorAll('.trip-card').forEach(card => {
   observer.observe(card);
 });
 
+const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const hasFinePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+// Active nav link - article pages belong to the Trips section
+function markActiveNavLink() {
+  const currentFile = location.pathname.split('/').pop() || 'index.html';
+  const activeFile = currentFile.startsWith('post-') ? 'trips.html' : currentFile;
+  const activeLink = document.querySelector(`.nav-links a[href="${activeFile}"]`);
+  if (!activeLink) return;
+  activeLink.setAttribute('aria-current', 'page');
+}
+
+markActiveNavLink();
+
+// Scroll-driven nav state, reading progress bar and hero parallax
+const navBar = document.querySelector('.nav');
+const heroImage = document.querySelector('.hero-image');
+let navProgress = null;
+let scrollFramePending = false;
+
+if (navBar) {
+  navProgress = document.createElement('div');
+  navProgress.className = 'nav-progress';
+  navBar.appendChild(navProgress);
+}
+
+function updateScrollState() {
+  scrollFramePending = false;
+  const scrollY = window.scrollY;
+  const scrollRange = document.documentElement.scrollHeight - window.innerHeight;
+  const progress = scrollRange > 0 ? Math.min(scrollY / scrollRange, 1) : 0;
+
+  if (navBar) {
+    navBar.classList.toggle('is-scrolled', scrollY > 10);
+    navProgress.style.setProperty('--scroll-progress', progress.toFixed(4));
+  }
+
+  if (heroImage && !prefersReducedMotion && scrollY < window.innerHeight) {
+    heroImage.style.setProperty('--hero-shift', `${Math.round(scrollY * 0.35)}px`);
+  }
+}
+
+window.addEventListener('scroll', () => {
+  if (scrollFramePending) return;
+  scrollFramePending = true;
+  requestAnimationFrame(updateScrollState);
+}, { passive: true });
+
+updateScrollState();
+
+// Card tilt - follows the pointer on desktop only
+const TILT_MAX_DEG = 6;
+
+function attachCardTilt(cardImage) {
+  cardImage.addEventListener('pointermove', (e) => {
+    const rect = cardImage.getBoundingClientRect();
+    const offsetX = (e.clientX - rect.left) / rect.width - 0.5;
+    const offsetY = (e.clientY - rect.top) / rect.height - 0.5;
+    cardImage.style.setProperty('--tilt-x', `${(-offsetY * TILT_MAX_DEG).toFixed(2)}deg`);
+    cardImage.style.setProperty('--tilt-y', `${(offsetX * TILT_MAX_DEG).toFixed(2)}deg`);
+  });
+
+  cardImage.addEventListener('pointerleave', () => {
+    cardImage.style.setProperty('--tilt-x', '0deg');
+    cardImage.style.setProperty('--tilt-y', '0deg');
+  });
+}
+
+if (hasFinePointer && !prefersReducedMotion) {
+  document.querySelectorAll('.trip-card-image').forEach(attachCardTilt);
+}
+
 // Lightbox - opens article images fullscreen with prev/next navigation
 const articleImages = Array.from(document.querySelectorAll('.article-body img'));
 let lightboxIndex = 0;
