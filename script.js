@@ -188,7 +188,7 @@ function buildLightbox() {
   lightboxEl.innerHTML = `
     <button class="lightbox-close" aria-label="Close">×</button>
     <button class="lightbox-nav lightbox-prev" aria-label="Previous">‹</button>
-    <img alt="">
+    <img alt="" sizes="92vw">
     <button class="lightbox-nav lightbox-next" aria-label="Next">›</button>
     <div class="lightbox-counter"></div>
   `;
@@ -224,10 +224,11 @@ function closeLightbox() {
 function showImage(index) {
   const total = articleImages.length;
   lightboxIndex = (index + total) % total;
-  const src = articleImages[lightboxIndex].src;
-  const alt = articleImages[lightboxIndex].alt;
-  lightboxEl.querySelector('img').src = src;
-  lightboxEl.querySelector('img').alt = alt;
+  const sourceImage = articleImages[lightboxIndex];
+  const lightboxImage = lightboxEl.querySelector('img');
+  lightboxImage.srcset = sourceImage.srcset;
+  lightboxImage.src = sourceImage.src;
+  lightboxImage.alt = sourceImage.alt;
   lightboxEl.querySelector('.lightbox-counter').textContent = `${lightboxIndex + 1} / ${total}`;
 }
 

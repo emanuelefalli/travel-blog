@@ -6,7 +6,7 @@
 <title>Map — Wanderlines</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Cormorant+Garamond:wght@400;500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Cormorant+Garamond:wght@400&family=Inter:wght@400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="style.css">
 <script src="theme.js"></script>
@@ -91,20 +91,6 @@
     line-height: 1.25;
   }
 
-  .map-loading {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.75rem;
-    letter-spacing: 0.25em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    pointer-events: none;
-    z-index: 5;
-  }
-
   [data-theme="dark"] #map,
   [data-theme="dark"] .leaflet-container {
     background: #1a2530 !important;
@@ -131,10 +117,7 @@
 <div class="nav-overlay"></div>
 
 <div class="map-page">
-  <div style="position: relative;">
-    <div id="map"></div>
-    <div class="map-loading" id="mapLoading">Loading map…</div>
-  </div>
+  <div id="map"></div>
 </div>
 
 <footer class="footer">
@@ -151,6 +134,7 @@
 </footer>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="assets/data/countries.js"></script>
 <script src="script.js"></script>
 <script>
   // Visited countries, keyed by ISO A3 code.
@@ -282,20 +266,10 @@
     layer.on('mouseout', () => layer.setStyle(STYLE_VISITED));
   }
 
-  // Public GeoJSON of world country boundaries with ISO_A3 codes
-  fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
-    .then(r => r.json())
-    .then(data => {
-      L.geoJSON(data, {
-        style: styleFor,
-        onEachFeature: onEachFeature
-      }).addTo(map);
-      document.getElementById('mapLoading').style.display = 'none';
-    })
-    .catch(err => {
-      document.getElementById('mapLoading').textContent = 'Could not load map data.';
-      console.error(err);
-    });
+  L.geoJSON(WORLD_COUNTRIES, {
+    style: styleFor,
+    onEachFeature: onEachFeature
+  }).addTo(map);
 </script>
 </body>
 </html>

@@ -20,6 +20,7 @@ What it does:
      tag marking the correction, and sips's own resize doesn't apply it,
      so left alone the photo comes out sideways.
   3. Resizes/compresses photos (sips, macOS built-in) into assets/images/<slug>/
+     and writes WebP copies at several widths (cwebp) for srcset
   4. Generates post-<slug>.html from the article template
   5. Prepends a trip card to trips.html
   6. Adds/updates the country entry in map.html
@@ -34,10 +35,28 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import NamedTuple
 
 REPO = Path(__file__).resolve().parent.parent
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".heic", ".webp"}
 MAX_HOMEPAGE_CARDS = 5
+
+WEBP_QUALITY = 80
+WEBP_SMALLER_WIDTHS = (800, 1400)
+
+SIZES_FULL = "(max-width: 1400px) 100vw, 1400px"
+SIZES_PAIR = "(max-width: 700px) 100vw, 50vw"
+SIZES_TRIPTYCH = "(max-width: 700px) 100vw, 33vw"
+SIZES_CARD = "(max-width: 768px) 100vw, 50vw"
+
+
+class ProcessedImage(NamedTuple):
+    jpeg_path: str
+    webp_path: str
+    srcset: str
+    width: int
+    height: int
+    is_landscape: bool
 
 # EXIF Orientation tag -> degrees to rotate clockwise to correct it.
 # Values 2/4/5/7 involve a mirror flip in addition to rotation; these don't
@@ -129,8 +148,37 @@ def get_dimensions(path):
     return width, height
 
 
+def write_webp(src, dest, width=None):
+    command = ["cwebp", "-quiet", "-q", str(WEBP_QUALITY), "-metadata", "none"]
+    if width:
+        command += ["-resize", str(width), "0"]
+    subprocess.run(command + [str(src), "-o", str(dest)], check=True, capture_output=True)
+
+
+def write_webp_variants(jpeg_path, slug, width):
+    """Write a full-size WebP plus downscaled ones narrower than the JPEG.
+    Returns (full_size_web_path, srcset)."""
+    stem = jpeg_path.stem
+    out_dir = jpeg_path.parent
+    web_dir = f"assets/images/{slug}"
+
+    srcset_entries = []
+    for target_width in WEBP_SMALLER_WIDTHS:
+        if target_width >= width:
+            continue
+        name = f"{stem}-{target_width}.webp"
+        write_webp(jpeg_path, out_dir / name, target_width)
+        srcset_entries.append(f"{web_dir}/{name} {target_width}w")
+
+    full_name = f"{stem}.webp"
+    write_webp(jpeg_path, out_dir / full_name)
+    srcset_entries.append(f"{web_dir}/{full_name} {width}w")
+
+    return f"{web_dir}/{full_name}", ", ".join(srcset_entries)
+
+
 def process_images(photo_paths, slug):
-    """Resize/compress each photo, returning (web_path, is_landscape) pairs."""
+    """Resize/compress each photo to JPEG, add WebP variants, return ProcessedImage list."""
     out_dir = REPO / "assets" / "images" / slug
     out_dir.mkdir(parents=True, exist_ok=True)
     results = []
@@ -148,14 +196,37 @@ def process_images(photo_paths, slug):
             if normalized != src:
                 normalized.unlink(missing_ok=True)
         width, height = get_dimensions(dest)
-        is_landscape = bool(width and height and width > height)
-        results.append((f"assets/images/{slug}/{dest_name}", is_landscape))
+        if not width or not height:
+            sys.exit(f"Error: could not read dimensions of {dest}.")
+        webp_path, srcset = write_webp_variants(dest, slug, width)
+        results.append(ProcessedImage(
+            jpeg_path=f"assets/images/{slug}/{dest_name}",
+            webp_path=webp_path,
+            srcset=srcset,
+            width=width,
+            height=height,
+            is_landscape=width > height,
+        ))
     return results
 
 
+def responsive_img_html(image, alt, sizes):
+    return (
+        f'<img loading="lazy" src="{image.jpeg_path}" srcset="{image.srcset}" sizes="{sizes}" '
+        f'width="{image.width}" height="{image.height}" alt="{alt}">'
+    )
+
+
+def hero_img_html(image, alt, css_class=""):
+    class_attr = f'class="{css_class}" ' if css_class else ""
+    return (
+        f'<img {class_attr}src="{image.webp_path}" width="{image.width}" height="{image.height}" '
+        f'fetchpriority="high" alt="{alt}">'
+    )
+
+
 def build_article_html(meta, sections, images):
-    # images is a list of (web_path, is_landscape) pairs.
-    hero_img = images[0][0]
+    hero_img_tag = hero_img_html(images[0], meta["title"])
     remaining = images[1:]
 
     blocks = []
@@ -169,10 +240,10 @@ def build_article_html(meta, sections, images):
         blocks.append(f'  <div class="prose">\n{inner}  </div>')
 
         if remaining:
-            img_path, _ = remaining.pop(0)
+            image = remaining.pop(0)
             blocks.append(
                 f'  <figure class="image-full">\n'
-                f'    <img loading="lazy" src="{img_path}" alt="{meta["title"]}">\n'
+                f'    {responsive_img_html(image, meta["title"], SIZES_FULL)}\n'
                 f'  </figure>'
             )
 
@@ -184,27 +255,28 @@ def build_article_html(meta, sections, images):
     def flush_portraits():
         if not portrait_buffer:
             return
-        imgs_html = "\n".join(
-            f'    <img loading="lazy" src="{p}" alt="{meta["title"]}">' for p in portrait_buffer
-        )
         if len(portrait_buffer) == 1:
-            blocks.append(f'  <figure class="image-full">\n{imgs_html}\n  </figure>')
+            wrapper_open, wrapper_close, sizes = '<figure class="image-full">', '</figure>', SIZES_FULL
         elif len(portrait_buffer) == 2:
-            blocks.append(f'  <div class="image-pair">\n{imgs_html}\n  </div>')
+            wrapper_open, wrapper_close, sizes = '<div class="image-pair">', '</div>', SIZES_PAIR
         else:
-            blocks.append(f'  <div class="image-triptych">\n{imgs_html}\n  </div>')
+            wrapper_open, wrapper_close, sizes = '<div class="image-triptych">', '</div>', SIZES_TRIPTYCH
+        imgs_html = "\n".join(
+            f'    {responsive_img_html(image, meta["title"], sizes)}' for image in portrait_buffer
+        )
+        blocks.append(f'  {wrapper_open}\n{imgs_html}\n  {wrapper_close}')
         portrait_buffer.clear()
 
-    for img_path, is_landscape in remaining:
-        if is_landscape:
+    for image in remaining:
+        if image.is_landscape:
             flush_portraits()
             blocks.append(
                 f'  <figure class="image-full">\n'
-                f'    <img loading="lazy" src="{img_path}" alt="{meta["title"]}">\n'
+                f'    {responsive_img_html(image, meta["title"], SIZES_FULL)}\n'
                 f'  </figure>'
             )
         else:
-            portrait_buffer.append(img_path)
+            portrait_buffer.append(image)
             if len(portrait_buffer) == 3:
                 flush_portraits()
     flush_portraits()
@@ -219,7 +291,7 @@ def build_article_html(meta, sections, images):
 <title>{meta['title']} — Wanderlines</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Cormorant+Garamond:wght@400;500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Cormorant+Garamond:wght@400&family=Inter:wght@400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <script src="theme.js"></script>
 </head>
@@ -243,7 +315,7 @@ def build_article_html(meta, sections, images):
 <div class="nav-overlay"></div>
 
 <div class="article-hero">
-  <img src="{hero_img}" alt="{meta['title']}">
+  {hero_img_tag}
 </div>
 
 <header class="article-header">
@@ -284,7 +356,7 @@ def trip_card_html(meta, filename, card_image):
     return (
         f'    <a href="{filename}" class="trip-card">\n'
         f'      <div class="trip-card-image">\n'
-        f'        <img loading="lazy" src="{card_image}" alt="{meta["title"]}">\n'
+        f'        {responsive_img_html(card_image, meta["title"], SIZES_CARD)}\n'
         f'      </div>\n'
         f'      <div class="trip-card-meta">{meta["country_name"]} · {meta["date"]}</div>\n'
         f'      <h3 class="trip-card-title">{meta["title"]}</h3>\n'
@@ -405,7 +477,7 @@ def update_index_html(meta, filename, hero_image, card_image):
     new_hero = (
         f'<a href="{filename}" class="hero-link">\n'
         f'<section class="hero">\n'
-        f'  <img class="hero-image" src="{hero_image}" alt="{meta["title"]}">\n'
+        f'  {hero_img_html(hero_image, meta["title"], "hero-image")}\n'
         f'  <div class="hero-overlay"></div>\n'
         f'  <div class="hero-content">\n'
         f'    <div class="hero-eyebrow">Latest Story</div>\n'
@@ -462,6 +534,12 @@ def main():
     if not args:
         sys.exit("Usage: python3 scripts/publish_trip.py /path/to/trip-folder [--no-push] [--no-homepage]")
 
+    if shutil.which("cwebp") is None:
+        sys.exit(
+            "Error: cwebp is required to write the WebP image variants. "
+            "Install it with 'brew install webp', then retry."
+        )
+
     if shutil.which("exiftool") is None:
         sys.exit(
             "Error: exiftool is required to read photo orientation correctly "
@@ -499,7 +577,7 @@ def main():
     (REPO / filename).write_text(article_html, encoding="utf-8")
 
     print("Updating trips.html...")
-    card_image = images[1][0] if len(images) > 1 else images[0][0]
+    card_image = images[1] if len(images) > 1 else images[0]
     update_trips_html(meta, filename, card_image)
 
     print("Updating map.html...")
@@ -507,7 +585,7 @@ def main():
 
     if "--no-homepage" not in flags:
         print("Updating index.html...")
-        update_index_html(meta, filename, images[0][0], card_image)
+        update_index_html(meta, filename, images[0], card_image)
 
     git_commit_and_push(meta, push="--no-push" not in flags)
 
