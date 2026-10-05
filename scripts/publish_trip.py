@@ -221,6 +221,7 @@ def build_article_html(meta, sections, images):
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Cormorant+Garamond:wght@400;500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
 </head>
 <body>
 
@@ -234,7 +235,7 @@ def build_article_html(meta, sections, images):
     <li><a href="trips.html">Trips</a></li>
     <li><a href="map.html">Map</a></li>
     <li><a href="about.html">About</a></li>
-    <li><button class="theme-toggle" aria-label="Toggle theme">☾</button></li>
+    <li><button class="theme-toggle" aria-label="Toggle theme"></button></li>
   </ul>
 </nav>
 <div class="nav-overlay"></div>
@@ -320,6 +321,7 @@ def remove_from_map(filename):
 
     # Guard against a dangling comma if the removed entry was the last one.
     html = re.sub(r",(\s*)\};", r"\1};", html)
+    html = re.sub(r",(\s*)\]", r"\1]", html)
 
     if html != original:
         path.write_text(html, encoding="utf-8")

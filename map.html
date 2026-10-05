@@ -9,14 +9,19 @@
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Cormorant+Garamond:wght@400;500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
 <style>
   .map-page {
-    padding-top: 4.5rem;
+    position: relative;
+    z-index: 0;
+    isolation: isolate;
+    padding-top: var(--nav-height);
   }
 
   #map {
     width: 100%;
-    height: calc(100vh - 4.5rem);
+    height: calc(100vh - var(--nav-height));
+    height: calc(100dvh - var(--nav-height));
     background: #cfe3ef;
   }
 
@@ -118,7 +123,7 @@
     <li><a href="trips.html">Trips</a></li>
     <li><a href="map.html">Map</a></li>
     <li><a href="about.html">About</a></li>
-    <li><button class="theme-toggle" aria-label="Toggle theme">☾</button></li>
+    <li><button class="theme-toggle" aria-label="Toggle theme"></button></li>
   </ul>
 </nav>
 <div class="nav-overlay"></div>
@@ -156,7 +161,7 @@
       { title: "Silence at 3000 Meters", meta: "January 2026", url: "post-patagonia.html" }
     ],
     "JPN": [
-      { title: "Kyoto in Slow Motion", meta: "October 2025", url: "post-patagonia.html" },,,
+      { title: "Kyoto in Slow Motion", meta: "October 2025", url: "post-patagonia.html" },
       { title: "Tokyo Godfathers", meta: "April 2026", url: "post-tokyo-godfathers.html" }
     ],
     "ISL": [
@@ -213,6 +218,25 @@
     zoomControl: true,
     attributionControl: false
   });
+
+  const WHEEL_PIXELS_PER_LINE = 33;
+  const WHEEL_PIXELS_PER_ZOOM_STEP = 100;
+  let wheelZoomAccumulator = 0;
+
+  function onCtrlWheelZoom(event) {
+    if (!event.ctrlKey) return;
+    event.preventDefault();
+
+    const deltaPixels = event.deltaMode === 1 ? event.deltaY * WHEEL_PIXELS_PER_LINE : event.deltaY;
+    wheelZoomAccumulator += deltaPixels;
+    if (Math.abs(wheelZoomAccumulator) < WHEEL_PIXELS_PER_ZOOM_STEP) return;
+
+    const zoomStep = wheelZoomAccumulator > 0 ? -1 : 1;
+    wheelZoomAccumulator = 0;
+    map.setZoomAround(map.mouseEventToContainerPoint(event), map.getZoom() + zoomStep);
+  }
+
+  map.getContainer().addEventListener('wheel', onCtrlWheelZoom, { passive: false });
 
   function getCountryCode(feature) {
     const p = feature.properties || {};

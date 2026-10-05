@@ -28,29 +28,40 @@ if (navToggle && navLinks && navOverlay) {
   });
 }
 
-// Theme toggle - persists choice in localStorage
+// Theme toggle - readSavedTheme / writeSavedTheme come from theme.js
 const themeToggle = document.querySelector('.theme-toggle');
 const root = document.documentElement;
 
-const savedTheme = localStorage.getItem('theme') || 'light';
-root.setAttribute('data-theme', savedTheme);
-updateToggleIcon(savedTheme);
+const ICON_SUN = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg>';
+const ICON_MOON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg>';
+
+function applyTheme(theme) {
+  root.setAttribute('data-theme', theme);
+  if (!themeToggle) return;
+  themeToggle.innerHTML = theme === 'dark' ? ICON_SUN : ICON_MOON;
+  themeToggle.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+}
+
+applyTheme(readSavedTheme());
 
 if (themeToggle) {
   themeToggle.addEventListener('click', () => {
-    const current = root.getAttribute('data-theme');
-    const next = current === 'dark' ? 'light' : 'dark';
-    root.setAttribute('data-theme', next);
-    localStorage.setItem('theme', next);
-    updateToggleIcon(next);
+    const nextTheme = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    writeSavedTheme(nextTheme);
+    applyTheme(nextTheme);
   });
 }
 
-function updateToggleIcon(theme) {
-  if (!themeToggle) return;
-  themeToggle.textContent = theme === 'dark' ? '☀' : '☾';
-  themeToggle.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
-}
+// Pages restored from the back/forward cache skip script execution
+window.addEventListener('pageshow', () => {
+  applyTheme(readSavedTheme());
+  if (navLinks) closeNav();
+});
+
+window.addEventListener('storage', (event) => {
+  if (event.key !== THEME_STORAGE_KEY) return;
+  applyTheme(readSavedTheme());
+});
 
 // Progressive image loading - fades images in once they finish loading
 const lazyImages = document.querySelectorAll('img[loading="lazy"]');
@@ -118,7 +129,7 @@ function updateScrollState() {
     navProgress.style.setProperty('--scroll-progress', progress.toFixed(4));
   }
 
-  if (heroImage && !prefersReducedMotion && scrollY < window.innerHeight) {
+  if (heroImage && hasFinePointer && !prefersReducedMotion && scrollY < window.innerHeight) {
     heroImage.style.setProperty('--hero-shift', `${Math.round(scrollY * 0.35)}px`);
   }
 }
@@ -130,6 +141,17 @@ window.addEventListener('scroll', () => {
 }, { passive: true });
 
 updateScrollState();
+
+// Trip counter - counts the cards in the grid next to the label
+function updateTripCount() {
+  const tripCountLabel = document.querySelector('[data-trip-count]');
+  if (!tripCountLabel) return;
+
+  const tripCount = document.querySelectorAll('.trip-grid .trip-card').length;
+  tripCountLabel.textContent = `${tripCount} ${tripCount === 1 ? 'Journey' : 'Journeys'}`;
+}
+
+updateTripCount();
 
 // Card tilt - follows the pointer on desktop only
 const TILT_MAX_DEG = 6;
