@@ -150,6 +150,16 @@ a:hover {
   gap: 0.5rem;
   align-items: center;
   list-style: none;
+  margin-left: auto;
+}
+
+.nav-actions {
+  position: relative;
+  z-index: 210;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .nav-links a {
@@ -207,7 +217,6 @@ a:hover {
   cursor: pointer;
   flex-direction: column;
   justify-content: space-between;
-  z-index: 210;
   touch-action: manipulation;
 }
 
@@ -402,6 +411,7 @@ a:hover {
 }
 
 .section-recent {
+  padding-top: 3.5rem;
   padding-bottom: 3rem;
 }
 
@@ -1058,9 +1068,6 @@ img[loading="lazy"].loaded {
     transition-delay: 0.15s;
   }
 
-  .nav-links.open li:nth-child(5) {
-    transition-delay: 0.2s;
-  }
 
   .nav-links a {
     font-size: 1.3rem;
@@ -1070,9 +1077,9 @@ img[loading="lazy"].loaded {
   }
 
   .theme-toggle {
-    margin: 0.75rem 0 0 1rem;
-    width: 42px;
-    height: 42px;
+    margin-left: 0;
+    width: 36px;
+    height: 36px;
   }
 
   .hero {
@@ -1084,6 +1091,7 @@ img[loading="lazy"].loaded {
   }
 
   .section-recent {
+    padding-top: 2rem;
     padding-bottom: 2rem;
   }
 

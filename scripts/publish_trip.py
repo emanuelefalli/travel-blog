@@ -227,16 +227,18 @@ def build_article_html(meta, sections, images):
 
 <nav class="nav">
   <a href="index.html" class="nav-brand">Wanderlines</a>
-  <button class="nav-toggle" aria-label="Open menu" aria-expanded="false">
-    <span></span><span></span><span></span>
-  </button>
   <ul class="nav-links">
     <li><a href="index.html">Home</a></li>
     <li><a href="trips.html">Trips</a></li>
     <li><a href="map.html">Map</a></li>
     <li><a href="about.html">About</a></li>
-    <li><button class="theme-toggle" aria-label="Toggle theme"></button></li>
   </ul>
+  <div class="nav-actions">
+    <button class="theme-toggle" aria-label="Toggle theme"></button>
+    <button class="nav-toggle" aria-label="Open menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
 </nav>
 <div class="nav-overlay"></div>
 
