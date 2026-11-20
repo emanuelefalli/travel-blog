@@ -18,3 +18,6 @@ function writeSavedTheme(theme) {
 }
 
 document.documentElement.setAttribute('data-theme', readSavedTheme());
+
+// Lets the CSS hold back scroll reveals and image fades only when scripts run
+document.documentElement.classList.add('js');

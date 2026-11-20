@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "index.html"
+        ],
+        "createdAt": "2026-11-19T16:37:55.563Z",
+        "reason": "Claude: hero's dark fallback background sits under a full-bleed photo, so no visible boundary touches the text"
+      },
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          "*.html"
+        ],
+        "createdAt": "2026-11-19T16:38:05.651Z",
+        "reason": "Claude: incumbent Wanderlines paper colour #fbf6ee kept; user chose 'Refine current playful' over a replacement palette"
+      }
+    ]
+  }
+}

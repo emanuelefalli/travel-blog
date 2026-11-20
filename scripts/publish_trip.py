@@ -282,6 +282,8 @@ def build_article_html(meta, sections, images):
     flush_portraits()
 
     body_html = "\n\n".join(blocks)
+    # Optional "language: it" in the trip file marks the story text's language
+    lang_attr = f' lang="{meta["language"]}"' if meta.get("language") else ""
 
     return f"""<!DOCTYPE html>
 <html lang="en" data-theme="light">
@@ -291,7 +293,7 @@ def build_article_html(meta, sections, images):
 <title>{meta['title']} — Wanderlines</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Cormorant+Garamond:wght@400&family=Inter:wght@400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <script src="theme.js"></script>
 </head>
@@ -319,7 +321,6 @@ def build_article_html(meta, sections, images):
 </div>
 
 <header class="article-header">
-  <div class="article-eyebrow">Journal</div>
   <h1 class="article-title">{meta['title']}</h1>
   <div class="article-meta">
     <span>{meta['location']}</span>
@@ -327,7 +328,7 @@ def build_article_html(meta, sections, images):
   </div>
 </header>
 
-<article class="article-body">
+<article class="article-body"{lang_attr}>
 
 {body_html}
 
@@ -359,7 +360,7 @@ def trip_card_html(meta, filename, card_image):
         f'        {responsive_img_html(card_image, meta["title"], SIZES_CARD)}\n'
         f'      </div>\n'
         f'      <div class="trip-card-meta">{meta["country_name"]} · {meta["date"]}</div>\n'
-        f'      <h3 class="trip-card-title">{meta["title"]}</h3>\n'
+        f'      <h2 class="trip-card-title">{meta["title"]}</h2>\n'
         f'      <p class="trip-card-subtitle">{meta["subtitle"]}</p>\n'
         f'    </a>'
     )
@@ -480,9 +481,9 @@ def update_index_html(meta, filename, hero_image, card_image):
         f'  {hero_img_html(hero_image, meta["title"], "hero-image")}\n'
         f'  <div class="hero-overlay"></div>\n'
         f'  <div class="hero-content">\n'
-        f'    <div class="hero-eyebrow">Latest Story</div>\n'
         f'    <h1 class="hero-title">{meta["title"]}</h1>\n'
         f'    <p class="hero-subtitle">{meta["subtitle"]}</p>\n'
+        f'    <p class="hero-meta"><span class="hero-tag">Latest story</span><span>{meta["country_name"]} · {meta["date"]}</span></p>\n'
         f'  </div>\n'
         f'</section>\n'
         f'</a>'

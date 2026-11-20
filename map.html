@@ -6,7 +6,7 @@
 <title>Map — Wanderlines</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Cormorant+Garamond:wght@400&family=Inter:wght@400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="style.css">
 <script src="theme.js"></script>
@@ -22,11 +22,11 @@
     width: 100%;
     height: calc(100vh - var(--nav-height));
     height: calc(100dvh - var(--nav-height));
-    background: #cfe3ef;
+    background: var(--map-sea);
   }
 
   .leaflet-container {
-    background: #cfe3ef !important;
+    background: var(--map-sea) !important;
     font-family: var(--font-sans);
     outline: none;
   }
@@ -72,7 +72,7 @@
   }
 
   .popup-article:hover {
-    background: rgba(0,0,0,0.03);
+    background: var(--accent-soft);
     opacity: 1;
   }
 
@@ -85,16 +85,13 @@
   }
 
   .popup-title {
-    font-family: var(--font-serif);
-    font-size: 1.1rem;
-    font-weight: 400;
-    line-height: 1.25;
+    font-family: var(--font-display);
+    font-size: 1.125rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
   }
 
-  [data-theme="dark"] #map,
-  [data-theme="dark"] .leaflet-container {
-    background: #1a2530 !important;
-  }
 </style>
 </head>
 <body>
@@ -173,26 +170,22 @@
     ]
   };
 
-  const STYLE_VISITED = {
-    fillColor: "#b8d8b8",
-    fillOpacity: 1,
-    color: "#8fb88f",
-    weight: 0.6
-  };
+  // Map colours come from the theme tokens in style.css, so they follow light/dark
+  function token(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
 
-  const STYLE_UNVISITED = {
-    fillColor: "#ffffff",
-    fillOpacity: 1,
-    color: "#c8c8c8",
-    weight: 0.5
-  };
+  function visitedStyle() {
+    return { fillColor: token('--map-visited'), fillOpacity: 1, color: token('--map-visited-line'), weight: 0.7 };
+  }
 
-  const STYLE_VISITED_HOVER = {
-    fillColor: "#a4cca4",
-    fillOpacity: 1,
-    color: "#6a9a6a",
-    weight: 1
-  };
+  function unvisitedStyle() {
+    return { fillColor: token('--map-land'), fillOpacity: 1, color: token('--map-line'), weight: 0.5 };
+  }
+
+  function visitedHoverStyle() {
+    return { fillColor: token('--map-visited-hover'), fillOpacity: 1, color: token('--map-visited-line'), weight: 1.2 };
+  }
 
   const map = L.map('map', {
     center: [30, 15],
@@ -240,7 +233,7 @@
   }
 
   function styleFor(feature) {
-    return isVisited(feature) ? STYLE_VISITED : STYLE_UNVISITED;
+    return isVisited(feature) ? visitedStyle() : unvisitedStyle();
   }
 
   function buildPopup(countryName, articles) {
@@ -262,14 +255,18 @@
 
     layer.bindPopup(buildPopup(name, articles), { closeButton: false, maxWidth: 280 });
 
-    layer.on('mouseover', () => layer.setStyle(STYLE_VISITED_HOVER));
-    layer.on('mouseout', () => layer.setStyle(STYLE_VISITED));
+    layer.on('mouseover', () => layer.setStyle(visitedHoverStyle()));
+    layer.on('mouseout', () => layer.setStyle(visitedStyle()));
   }
 
-  L.geoJSON(WORLD_COUNTRIES, {
+  const countriesLayer = L.geoJSON(WORLD_COUNTRIES, {
     style: styleFor,
     onEachFeature: onEachFeature
   }).addTo(map);
+
+  // Repaint countries when the theme toggles
+  new MutationObserver(() => countriesLayer.setStyle(styleFor))
+    .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 </script>
 </body>
 </html>
